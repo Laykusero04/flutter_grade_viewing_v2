@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "144510059304",
+    "project_id": "grade-viewing-dae89",
+    "storage_bucket": "grade-viewing-dae89.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:144510059304:android:b4c756f4c591219c48461d",
+        "android_client_info": {
+          "package_name": "com.example.grade_viewing_v2"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyD0wDraX6frDC5DERqwp9A7rJdBh5vqj8I"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

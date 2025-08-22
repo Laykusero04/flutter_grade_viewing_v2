@@ -39,6 +39,8 @@ dependencies:
   cloud_firestore: ^6.0.0
   flutter_bloc: ^9.1.1
   equatable: ^2.0.7
+  go_router: ^16.2.0
+  flutter_slidable: ^4.0.0
 
 dev_dependencies:
   flutter_test:

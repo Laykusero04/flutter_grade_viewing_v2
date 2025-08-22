@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:go_router/go_router.dart';
 import '../../components/constants/app_text_styles.dart';
 import '../../components/constants/app_color.dart';
 import '../../bloc/auth_bloc.dart';
@@ -48,10 +49,18 @@ class _RegisterScreenState extends State<RegisterScreen> {
     return BlocConsumer<AuthBloc, AuthState>(
       listener: (context, state) {
         if (state is AuthAuthenticated) {
-          if (state.user.userRole == 2) {
-            Navigator.pushReplacementNamed(context, '/teacher_dashboard');
-          } else if (state.user.userRole == 3) {
-            Navigator.pushReplacementNamed(context, '/student_dashboard');
+          // Manual navigation since router redirect isn't working
+          switch (state.user.userRole) {
+            case 2: // teacher
+              context.go('/teacher');
+              break;
+            case 3: // student
+              context.go('/student');
+              break;
+            default:
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Invalid user role')),
+              );
           }
         } else if (state is AuthError) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -147,7 +156,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                             ),
                             recognizer: TapGestureRecognizer()
                               ..onTap = () {
-                                Navigator.pushReplacementNamed(context, '/login');
+                                context.go('/login');
                               },
                           ),
                         ],

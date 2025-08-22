@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:go_router/go_router.dart';
 import '../../bloc/auth_bloc.dart';
 
 class StudentDashboardScreen extends StatelessWidget {
@@ -15,7 +16,7 @@ class StudentDashboardScreen extends StatelessWidget {
             icon: const Icon(Icons.logout),
             onPressed: () {
               context.read<AuthBloc>().add(LogoutRequested());
-              Navigator.pushReplacementNamed(context, '/login');
+              context.go('/login');
             },
           ),
         ],

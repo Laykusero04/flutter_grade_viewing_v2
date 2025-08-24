@@ -67,7 +67,8 @@ class Teacher extends Equatable {
       email: map['email'] ?? '',
       firstName: map['firstName'] ?? '',
       lastName: map['lastName'] ?? '',
-      employeeId: map['employeeId'] ?? '',
+      // Handle both employeeId and schoolId fields for compatibility
+      employeeId: map['employeeId'] ?? map['schoolId'] ?? '',
       userRole: map['userRole'] ?? 2, // Teacher role
       phoneNumber: map['phoneNumber'],
       department: map['department'],

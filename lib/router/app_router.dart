@@ -9,6 +9,7 @@ import '../screens/admin/manage_students_screen.dart';
 import '../screens/admin/manage_teachers_screen.dart';
 import '../screens/admin/manage_subjects_screen.dart';
 import '../screens/admin/manage_grades_screen.dart';
+import '../screens/admin/manage_academic_years_screen.dart';
 import '../screens/teacher/teacher_dashboard.dart';
 import '../screens/student/student_dashboard.dart';
 
@@ -98,6 +99,11 @@ class AppRouter {
             path: 'grades',
             name: 'admin-grades',
             builder: (context, state) => const ManageGradesScreen(),
+          ),
+          GoRoute(
+            path: 'academic_years',
+            name: 'admin-academic-years',
+            builder: (context, state) => const ManageAcademicYearsScreen(),
           ),
         ],
       ),

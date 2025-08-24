@@ -90,6 +90,15 @@ class AdminDrawer extends StatelessWidget {
               context.go('/admin/grades');
             },
           ),
+          ListTile(
+            leading: const Icon(Icons.school, color: Colors.indigo),
+            title: const Text('Manage Academic Years'),
+            selected: currentRoute == '/admin/academic_years',
+            onTap: () {
+              Navigator.pop(context);
+              context.go('/admin/academic_years');
+            },
+          ),
           const Divider(),
           ListTile(
             leading: const Icon(Icons.logout, color: Colors.red),

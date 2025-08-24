@@ -5,7 +5,7 @@ import '../../components/widget/dear_v2_app_bar.dart';
 import '../../components/widget/teacher_form.dart';
 import '../../components/widget/teacher_list_item.dart';
 import '../../components/widget/teacher_filters.dart';
-import '../../components/widget/teacher_detail_view.dart';
+import 'teacher_detail_view.dart';
 import '../../models/teacher.dart';
 import 'admin_component/admin_drawer.dart';
 

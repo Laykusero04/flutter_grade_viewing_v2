@@ -8,3 +8,5 @@ export 'firestore_student_service.dart';
 export 'firestore_teacher_service.dart';
 export 'firestore_academic_year_service.dart';
 export 'firestore_department_service.dart';
+export 'firestore_subject_teacher_service.dart';
+export 'firestore_subject_enrollment_service.dart';

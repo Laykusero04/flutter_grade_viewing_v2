@@ -5,7 +5,7 @@ import '../../components/widget/dear_v2_app_bar.dart';
 import '../../components/widget/subject_form.dart';
 import '../../components/widget/subject_list_item.dart';
 import '../../components/widget/subject_filters.dart';
-import '../../components/widget/subject_detail_view.dart';
+import 'subject_detail_view.dart';
 import '../../models/subject.dart';
 
 import 'admin_component/admin_drawer.dart';

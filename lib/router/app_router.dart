@@ -11,6 +11,10 @@ import '../screens/admin/manage_subjects_screen.dart';
 import '../screens/admin/manage_grades_screen.dart';
 import '../screens/admin/manage_academic_years_screen.dart';
 import '../screens/teacher/teacher_dashboard.dart';
+import '../screens/teacher/grade_submission_screen.dart';
+import '../screens/teacher/notifications_screen.dart';
+import '../screens/teacher/request_screen.dart';
+import '../screens/teacher/subject_students_screen.dart';
 import '../screens/student/student_dashboard.dart';
 
 class AppRouter {
@@ -111,6 +115,31 @@ class AppRouter {
         path: '/teacher',
         name: 'teacher',
         builder: (context, state) => const TeacherDashboardScreen(),
+        routes: [
+          GoRoute(
+            path: 'grade-submission',
+            name: 'teacher-grade-submission',
+            builder: (context, state) => const GradeSubmissionScreen(),
+          ),
+          GoRoute(
+            path: 'notifications',
+            name: 'teacher-notifications',
+            builder: (context, state) => const NotificationsScreen(),
+          ),
+          GoRoute(
+            path: 'request',
+            name: 'teacher-request',
+            builder: (context, state) => const RequestScreen(),
+          ),
+          GoRoute(
+            path: 'subject-students/:subjectId',
+            name: 'teacher-subject-students',
+            builder: (context, state) {
+              final subjectId = state.pathParameters['subjectId']!;
+              return SubjectStudentsScreen(subjectId: subjectId);
+            },
+          ),
+        ],
       ),
       GoRoute(
         path: '/student',

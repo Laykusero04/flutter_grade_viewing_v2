@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 
 class DearV2AppBar extends StatelessWidget implements PreferredSizeWidget {
   final String title;
@@ -32,4 +33,16 @@ class DearV2AppBar extends StatelessWidget implements PreferredSizeWidget {
 
   @override
   Size get preferredSize => const Size.fromHeight(kToolbarHeight);
+}
+
+class TeacherBackButton extends StatelessWidget {
+  const TeacherBackButton({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return IconButton(
+      icon: const Icon(Icons.arrow_back),
+      onPressed: () => context.go('/teacher'),
+    );
+  }
 }

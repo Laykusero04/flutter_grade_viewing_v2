@@ -16,6 +16,9 @@ import '../screens/teacher/notifications_screen.dart';
 import '../screens/teacher/request_screen.dart';
 import '../screens/teacher/subject_students_screen.dart';
 import '../screens/student/student_dashboard.dart';
+import '../screens/student/qr_scanner_screen.dart';
+import '../screens/student/student_enrolled_subjects_screen.dart';
+import '../screens/student/subject_students_grades_screen.dart';
 
 class AppRouter {
   static final GoRouter router = GoRouter(
@@ -145,6 +148,30 @@ class AppRouter {
         path: '/student',
         name: 'student',
         builder: (context, state) => const StudentDashboardScreen(),
+        routes: [
+          GoRoute(
+            path: 'qr-scanner',
+            name: 'student-qr-scanner',
+            builder: (context, state) => const QRScannerScreen(),
+          ),
+          GoRoute(
+            path: 'enrolled-subjects',
+            name: 'student-enrolled-subjects',
+            builder: (context, state) => const StudentEnrolledSubjectsScreen(),
+          ),
+          GoRoute(
+            path: 'subject-students-grades',
+            name: 'student-subject-students-grades',
+            builder: (context, state) {
+              final params = state.extra as Map<String, dynamic>?;
+              return SubjectStudentsGradesScreen(
+                subjectId: params?['subjectId']?.toString() ?? '',
+                subjectName: params?['subjectName']?.toString() ?? '',
+                subjectCode: params?['subjectCode']?.toString() ?? '',
+              );
+            },
+          ),
+        ],
       ),
     ],
     errorBuilder: (context, state) => Scaffold(

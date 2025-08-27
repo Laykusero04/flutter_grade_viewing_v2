@@ -49,6 +49,181 @@ class FirestoreSubjectEnrollmentService {
     }
   }
 
+  /// Get all subjects that a specific student is enrolled in
+  static Future<List<Map<String, dynamic>>> getStudentEnrollments(String studentId) async {
+    try {
+      final List<Map<String, dynamic>> enrollments = [];
+
+      // Get regular enrollments from main enrollments collection
+      final regularEnrollments = await _firestore
+          .collection('enrollments')
+          .where('studentId', isEqualTo: studentId)
+          .where('status', isEqualTo: 'active')
+          .get();
+
+      for (final doc in regularEnrollments.docs) {
+        final data = doc.data();
+        try {
+          // Get subject details
+          final subjectDoc = await _firestore
+              .collection('subjects')
+              .doc(data['subjectId'])
+              .get();
+
+          if (subjectDoc.exists) {
+            final subjectData = subjectDoc.data()!;
+            // Get teacher details
+            String teacherName = 'Unknown Teacher';
+            if (data['teacherId'] != null) {
+              try {
+                // First try to find teacher by teacherId
+                final teacherDoc = await _firestore
+                    .collection('users')
+                    .doc(data['teacherId'])
+                    .get();
+                
+                if (teacherDoc.exists) {
+                  final teacherData = teacherDoc.data()!;
+                  final firstName = teacherData['firstName'] ?? '';
+                  final lastName = teacherData['lastName'] ?? '';
+                  teacherName = '$firstName $lastName'.trim();
+                  if (teacherName.isEmpty) {
+                    teacherName = 'Unknown Teacher';
+                  }
+                } else {
+                  // If not found by teacherId, try to find by email (uid)
+                  final teacherQuery = await _firestore
+                      .collection('users')
+                      .where('uid', isEqualTo: data['teacherId'])
+                      .limit(1)
+                      .get();
+                  
+                  if (teacherQuery.docs.isNotEmpty) {
+                    final teacherData = teacherQuery.docs.first.data();
+                    final firstName = teacherData['firstName'] ?? '';
+                    final lastName = teacherData['lastName'] ?? '';
+                    teacherName = '$firstName $lastName'.trim();
+                    if (teacherName.isEmpty) {
+                      teacherName = 'Unknown Teacher';
+                    }
+                  }
+                }
+              } catch (e) {
+                print('Error fetching teacher ${data['teacherId']}: $e');
+              }
+            }
+            enrollments.add({
+              'enrollmentId': doc.id,
+              'subjectId': data['subjectId'],
+              'subjectName': subjectData['name'],
+              'subjectCode': subjectData['code'],
+              'enrolledAt': data['enrolledAt'],
+              'enrolledVia': data['enrolledVia'] ?? 'regular',
+              'status': data['status'] ?? 'active',
+              'teacherId': data['teacherId'],
+              'subjectTeacherId': data['subjectTeacherId'],
+              'teacherName': teacherName,
+            });
+          }
+        } catch (e) {
+          print('Error fetching subject ${data['subjectId']}: $e');
+        }
+      }
+
+      // Get QR enrollments from subject_teachers subcollections
+      final subjectTeachersQuery = await _firestore
+          .collection('subject_teachers')
+          .get();
+
+      for (final subjectTeacherDoc in subjectTeachersQuery.docs) {
+        try {
+          final enrolledStudentDoc = await _firestore
+              .collection('subject_teachers')
+              .doc(subjectTeacherDoc.id)
+              .collection('enrolled_students')
+              .doc(studentId)
+              .get();
+
+          if (enrolledStudentDoc.exists) {
+            final enrollmentData = enrolledStudentDoc.data()!;
+            
+            // Get subject details
+            final subjectDoc = await _firestore
+                .collection('subjects')
+                .doc(enrollmentData['subjectId'])
+                .get();
+
+            if (subjectDoc.exists) {
+              final subjectData = subjectDoc.data()!;
+              
+              // Get teacher details from subject_teachers document
+              String teacherName = 'Unknown Teacher';
+              final subjectTeacherData = subjectTeacherDoc.data();
+              if (subjectTeacherData['teacherId'] != null) {
+                try {
+                  // First try to find teacher by teacherId
+                  final teacherDoc = await _firestore
+                      .collection('users')
+                      .doc(subjectTeacherData['teacherId'])
+                      .get();
+                  
+                  if (teacherDoc.exists) {
+                    final teacherData = teacherDoc.data()!;
+                    final firstName = teacherData['firstName'] ?? '';
+                    final lastName = teacherData['lastName'] ?? '';
+                    teacherName = '$firstName $lastName'.trim();
+                    if (teacherName.isEmpty) {
+                      teacherName = 'Unknown Teacher';
+                    }
+                  } else {
+                    // If not found by teacherId, try to find by email (uid)
+                    final teacherQuery = await _firestore
+                        .collection('users')
+                        .where('uid', isEqualTo: subjectTeacherData['teacherId'])
+                        .limit(1)
+                        .get();
+                    
+                    if (teacherQuery.docs.isNotEmpty) {
+                      final teacherData = teacherQuery.docs.first.data();
+                      final firstName = teacherData['firstName'] ?? '';
+                      final lastName = teacherData['lastName'] ?? '';
+                      teacherName = '$firstName $lastName'.trim();
+                      if (teacherName.isEmpty) {
+                        teacherName = 'Unknown Teacher';
+                      }
+                    }
+                  }
+                } catch (e) {
+                  print('Error fetching teacher ${subjectTeacherData['teacherId']}: $e');
+                }
+              }
+              
+              enrollments.add({
+                'enrollmentId': enrolledStudentDoc.id,
+                'subjectId': enrollmentData['subjectId'],
+                'subjectName': subjectData['name'],
+                'subjectCode': subjectData['code'],
+                'enrolledAt': enrollmentData['enrolledAt'],
+                'enrolledVia': 'qr_code',
+                'status': enrollmentData['status'] ?? 'active',
+                'teacherId': subjectTeacherData['teacherId'],
+                'teacherName': teacherName,
+                'subjectTeacherId': subjectTeacherDoc.id,
+              });
+            }
+          }
+        } catch (e) {
+          print('Error checking QR enrollment for ${subjectTeacherDoc.id}: $e');
+        }
+      }
+
+      return enrollments;
+    } catch (e) {
+      print('Error getting student enrollments: $e');
+      return [];
+    }
+  }
+
   /// Get enrollment details for a subject
   static Future<List<Map<String, dynamic>>> getEnrollmentDetails(String subjectId) async {
     try {

@@ -7,7 +7,6 @@ import '../../components/widget/subject_list_item.dart';
 import '../../components/widget/subject_filters.dart';
 import 'subject_detail_view.dart';
 import '../../models/subject.dart';
-
 import 'admin_component/admin_drawer.dart';
 
 class ManageSubjectsScreen extends StatefulWidget {

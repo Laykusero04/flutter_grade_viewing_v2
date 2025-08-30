@@ -108,9 +108,7 @@ class StudentDashboardScreen extends StatelessWidget {
                 ),
               ),
             ),
-            
             const SizedBox(height: 16),
-            
             // My Subjects Card
             Card(
               elevation: 4,

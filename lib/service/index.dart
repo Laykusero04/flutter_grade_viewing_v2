@@ -10,3 +10,5 @@ export 'firestore_academic_year_service.dart';
 export 'firestore_department_service.dart';
 export 'firestore_subject_teacher_service.dart';
 export 'firestore_subject_enrollment_service.dart';
+export 'firestore_grade_service.dart';
+export 'firestore_assignment_service.dart';

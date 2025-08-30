@@ -12,6 +12,10 @@ import '../screens/admin/manage_grades_screen.dart';
 import '../screens/admin/manage_academic_years_screen.dart';
 import '../screens/teacher/teacher_dashboard.dart';
 import '../screens/teacher/grade_submission_screen.dart';
+import '../screens/teacher/grade_student_screen.dart';
+import '../screens/teacher/grade_management_screen.dart';
+import '../screens/teacher/grade_entry_screen.dart';
+import '../screens/teacher/grade_input_screen.dart';
 import '../screens/teacher/notifications_screen.dart';
 import '../screens/teacher/request_screen.dart';
 import '../screens/teacher/subject_students_screen.dart';
@@ -19,6 +23,9 @@ import '../screens/student/student_dashboard.dart';
 import '../screens/student/qr_scanner_screen.dart';
 import '../screens/student/student_enrolled_subjects_screen.dart';
 import '../screens/student/subject_students_grades_screen.dart';
+import '../models/subject.dart';
+import '../models/assignment.dart';
+import '../models/student.dart';
 
 class AppRouter {
   static final GoRouter router = GoRouter(
@@ -125,6 +132,40 @@ class AppRouter {
             builder: (context, state) => const GradeSubmissionScreen(),
           ),
           GoRoute(
+            path: 'grade-management/:subjectId',
+            name: 'teacher-grade-management',
+            builder: (context, state) {
+              final subjectId = state.pathParameters['subjectId']!;
+              return GradeManagementScreen(subjectId: subjectId);
+            },
+          ),
+          GoRoute(
+            path: 'grade-entry',
+            name: 'teacher-grade-entry',
+            builder: (context, state) {
+              final params = state.extra as Map<String, dynamic>;
+              return GradeEntryScreen(
+                assignment: params['assignment'] as Assignment,
+                subject: params['subject'] as Subject,
+                students: params['students'] as List<Student>,
+              );
+            },
+          ),
+          GoRoute(
+            path: 'grade-input',
+            name: 'teacher-grade-input',
+            builder: (context, state) {
+              final params = state.extra as Map<String, dynamic>;
+              return GradeInputScreen(
+                subjectId: params['subjectId'] as String,
+                studentId: params['studentId'] as String,
+                studentName: params['studentName'] as String,
+                subject: params['subject'] as Subject,
+              );
+            },
+          ),
+
+          GoRoute(
             path: 'notifications',
             name: 'teacher-notifications',
             builder: (context, state) => const NotificationsScreen(),
@@ -140,6 +181,18 @@ class AppRouter {
             builder: (context, state) {
               final subjectId = state.pathParameters['subjectId']!;
               return SubjectStudentsScreen(subjectId: subjectId);
+            },
+          ),
+          GoRoute(
+            path: 'grade-student',
+            name: 'teacher-grade-student',
+            builder: (context, state) {
+              final params = state.extra as Map<String, dynamic>?;
+              return GradeStudentScreen(
+                subjectId: params?['subjectId']?.toString() ?? '',
+                studentId: params?['studentId']?.toString() ?? '',
+                studentName: params?['studentName']?.toString() ?? '',
+              );
             },
           ),
         ],

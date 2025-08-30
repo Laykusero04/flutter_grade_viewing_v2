@@ -10,6 +10,8 @@ import '../../service/firestore_subject_enrollment_service.dart';
 import '../../service/firestore_subject_service.dart';
 import '../../service/firestore_subject_teacher_qr_service.dart';
 import '../../service/firestore_subject_teacher_service.dart';
+import '../../service/firestore_grade_service.dart';
+import '../../models/grade.dart';
 import '../../models/qr_session.dart';
 import '../../components/widget/qr_code_modal.dart';
 import '../../bloc/auth_bloc.dart';
@@ -28,17 +30,25 @@ class SubjectStudentsScreen extends StatefulWidget {
   State<SubjectStudentsScreen> createState() => _SubjectStudentsScreenState();
 }
 
-class _SubjectStudentsScreenState extends State<SubjectStudentsScreen> {
+class _SubjectStudentsScreenState extends State<SubjectStudentsScreen> with SingleTickerProviderStateMixin {
+  late TabController _tabController;
   List<Student> _enrolledStudents = [];
   Subject? _subject;
   bool _isLoading = true;
   List<QRSession> _activeQRSessions = [];
-  List<Map<String, dynamic>> _qrEnrolledStudents = [];
+  Map<String, Grade?> _studentGrades = {};
 
   @override
   void initState() {
     super.initState();
+    _tabController = TabController(length: 2, vsync: this);
     _loadData();
+  }
+
+  @override
+  void dispose() {
+    _tabController.dispose();
+    super.dispose();
   }
 
   Future<void> _loadData() async {
@@ -50,13 +60,12 @@ class _SubjectStudentsScreenState extends State<SubjectStudentsScreen> {
       // Load subject data
       final subject = await FirestoreSubjectService.getSubjectById(widget.subjectId);
       
-      // Load enrolled students from main enrollments collection
+      // Load enrolled students from main enrollments collection (this already includes both regular and QR enrollments)
       final students = await FirestoreSubjectEnrollmentService.getEnrolledStudents(widget.subjectId);
       
-      // Load active QR sessions for this subject and get QR-enrolled students
+      // Load active QR sessions for this subject
       final authState = context.read<AuthBloc>().state;
       List<QRSession> activeSessions = [];
-      List<Map<String, dynamic>> qrEnrolledStudents = [];
       
       if (authState is AuthAuthenticated) {
         final teacherId = authState.user.email;
@@ -75,9 +84,6 @@ class _SubjectStudentsScreenState extends State<SubjectStudentsScreen> {
               if (qrSession != null && qrSession.isActive) {
                 activeSessions = [qrSession];
               }
-              
-              // Get students enrolled via QR code from the enrolled_students subcollection
-              qrEnrolledStudents = await FirestoreSubjectTeacherQRService.getEnrolledStudents(assignmentId);
             }
           } catch (e) {
             // Ignore QR session loading errors for now
@@ -93,8 +99,8 @@ class _SubjectStudentsScreenState extends State<SubjectStudentsScreen> {
         _isLoading = false;
       });
       
-      // Store QR enrolled students separately for display
-      _qrEnrolledStudents = qrEnrolledStudents;
+      // Load grades for all students
+      await _loadAllStudentGrades();
     } catch (e) {
       setState(() {
         _isLoading = false;
@@ -102,6 +108,44 @@ class _SubjectStudentsScreenState extends State<SubjectStudentsScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Failed to load data: $e')),
+        );
+      }
+    }
+  }
+
+  Future<void> _loadAllStudentGrades() async {
+    try {
+      for (final student in _enrolledStudents) {
+        final grades = await FirestoreGradeService.getStudentGrades(
+          student.uid,
+          widget.subjectId,
+        );
+        
+        // Find prelim, midterm, and final grades
+        Grade? prelimGrade, midtermGrade, finalGrade;
+        for (final grade in grades) {
+          switch (grade.assignmentName.toLowerCase()) {
+            case 'prelim':
+              prelimGrade = grade;
+              break;
+            case 'midterm':
+              midtermGrade = grade;
+              break;
+            case 'final':
+              finalGrade = grade;
+              break;
+          }
+        }
+        
+        // Store the first available grade for this student
+        _studentGrades[student.uid] = prelimGrade ?? midtermGrade ?? finalGrade;
+      }
+      
+      setState(() {});
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error loading student grades: $e')),
         );
       }
     }
@@ -339,97 +383,29 @@ class _SubjectStudentsScreenState extends State<SubjectStudentsScreen> {
     return '${dateTime.day}/${dateTime.month}/${dateTime.year} ${dateTime.hour}:${dateTime.minute.toString().padLeft(2, '0')}';
   }
 
-  @override
-  Widget build(BuildContext context) {
-    if (_isLoading) {
-      return Scaffold(
-        appBar: const DearV2AppBar(
-          title: 'Subject Students',
-          centerTitle: true,
-          automaticallyImplyLeading: false,
-          leading: BackButton(),
-        ),
-        body: const Center(child: CircularProgressIndicator()),
-      );
+  int _getStudentsWithGrades(String gradeType) {
+    int count = 0;
+    for (final student in _enrolledStudents) {
+      final grades = _studentGrades[student.uid];
+      if (grades != null && grades.assignmentName.toLowerCase() == gradeType.toLowerCase()) {
+        count++;
+      }
     }
+    return count;
+  }
 
+  Widget _buildInfoTab() {
     if (_subject == null) {
-      return Scaffold(
-        appBar: const DearV2AppBar(
-          title: 'Subject Students',
-          centerTitle: true,
-          automaticallyImplyLeading: false,
-          leading: BackButton(),
-        ),
-        body: const Center(
-          child: Text('Subject not found'),
-        ),
+      return const Center(
+        child: Text('Subject not found'),
       );
     }
 
     final subject = _subject!;
 
-    return Scaffold(
-      appBar: const DearV2AppBar(
-        title: 'Subject Students',
-        centerTitle: true,
-        automaticallyImplyLeading: false,
-        leading: BackButton(),
-      ),
-      floatingActionButton: SpeedDial(
-        icon: Icons.add,
-        activeIcon: Icons.close,
-        backgroundColor: AppColor.primary,
-        foregroundColor: Colors.white,
-        activeBackgroundColor: Colors.red,
-        activeForegroundColor: Colors.white,
-        buttonSize: const Size(56.0, 56.0),
-        visible: true,
-        closeManually: false,
-        curve: Curves.bounceIn,
-        overlayColor: Colors.black,
-        overlayOpacity: 0.5,
-        elevation: 8.0,
-        shape: const CircleBorder(),
-        children: [
-          SpeedDialChild(
-            child: const Icon(Icons.person_add, color: Colors.white),
-            backgroundColor: Colors.blue,
-            foregroundColor: Colors.white,
-            label: 'Add/Invite Student',
-            labelStyle: const TextStyle(fontSize: 14.0),
-            onTap: () {
-              // TODO: Implement add/invite student functionality
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Add/Invite Student functionality coming soon!'),
-                  backgroundColor: Colors.blue,
-                ),
-              );
-            },
-          ),
-          SpeedDialChild(
-            child: const Icon(Icons.qr_code, color: Colors.white),
-            backgroundColor: Colors.orange,
-            foregroundColor: Colors.white,
-            label: 'Generate QR Code',
-            labelStyle: const TextStyle(fontSize: 14.0),
-            onTap: () => _generateQRCode(),
-          ),
-          SpeedDialChild(
-            child: const Icon(Icons.assignment, color: Colors.white),
-            backgroundColor: Colors.green,
-            foregroundColor: Colors.white,
-            label: 'Submit Grades',
-            labelStyle: const TextStyle(fontSize: 14.0),
-            onTap: () {
-              context.go('/teacher/grade-submission');
-            },
-          ),
-        ],
-      ),
-      body: Padding(
-        padding: const EdgeInsets.all(16.0),
+    return Padding(
+      padding: const EdgeInsets.all(16.0),
+      child: SingleChildScrollView(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -487,27 +463,47 @@ class _SubjectStudentsScreenState extends State<SubjectStudentsScreen> {
                             ),
                           ),
                         ],
+                        if (subject.department != null) ...[
+                          const SizedBox(height: 4),
+                          Text(
+                            'Department: ${subject.department}',
+                            style: AppTextStyles.body.copyWith(
+                              color: Colors.grey[600],
+                              fontSize: 12,
+                            ),
+                          ),
+                        ],
+                        if (subject.credits != null) ...[
+                          const SizedBox(height: 4),
+                          Text(
+                            'Credits: ${subject.credits}',
+                            style: AppTextStyles.body.copyWith(
+                              color: Colors.grey[600],
+                              fontSize: 12,
+                            ),
+                          ),
+                        ],
                         const SizedBox(height: 8),
-                                                 // QR Session Status
-                         Row(
-                           children: [
-                             Icon(
-                               Icons.qr_code,
-                               size: 16,
-                               color: _activeQRSessions.isNotEmpty ? Colors.green : Colors.grey,
-                             ),
-                             const SizedBox(width: 4),
-                             Text(
-                               _activeQRSessions.isNotEmpty 
-                                   ? 'Active QR Code'
-                                   : 'No Active QR Code',
-                               style: AppTextStyles.body.copyWith(
-                                 color: _activeQRSessions.isNotEmpty ? Colors.green : Colors.grey,
-                                 fontSize: 12,
-                               ),
-                             ),
-                           ],
-                         ),
+                        // QR Session Status
+                        Row(
+                          children: [
+                            Icon(
+                              Icons.qr_code,
+                              size: 16,
+                              color: _activeQRSessions.isNotEmpty ? Colors.green : Colors.grey,
+                            ),
+                            const SizedBox(width: 4),
+                            Text(
+                              _activeQRSessions.isNotEmpty 
+                                  ? 'Active QR Code'
+                                  : 'No Active QR Code',
+                              style: AppTextStyles.body.copyWith(
+                                color: _activeQRSessions.isNotEmpty ? Colors.green : Colors.grey,
+                                fontSize: 12,
+                              ),
+                            ),
+                          ],
+                        ),
                       ],
                     ),
                   ),
@@ -515,208 +511,310 @@ class _SubjectStudentsScreenState extends State<SubjectStudentsScreen> {
               ),
             ),
             
-            const SizedBox(height: 20),
+            const SizedBox(height: 24),
             
-            // Students Count
+            // Grade Statistics Cards
+            Text(
+              'Grade Statistics',
+              style: AppTextStyles.headline.copyWith(
+                color: AppColor.primary,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 16),
+            
             Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text(
-                  'Enrolled Students (${_enrolledStudents.length + _qrEnrolledStudents.length})',
-                  style: AppTextStyles.headline.copyWith(
-                    fontWeight: FontWeight.w600,
-                    fontSize: 20,
+                Expanded(
+                  child: _buildGradeStatCard(
+                    'Prelim',
+                    _getStudentsWithGrades('prelim'),
+                    _enrolledStudents.length,
+                    Colors.blue,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: _buildGradeStatCard(
+                    'Midterm',
+                    _getStudentsWithGrades('midterm'),
+                    _enrolledStudents.length,
+                    Colors.orange,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: _buildGradeStatCard(
+                    'Final',
+                    _getStudentsWithGrades('final'),
+                    _enrolledStudents.length,
+                    Colors.green,
                   ),
                 ),
               ],
             ),
-            
-            const SizedBox(height: 16),
-            
+          ],
+        ),
+      ),
+    );
+  }
 
-
-            
-                        // Students List
-            Expanded(
-              child: _enrolledStudents.isEmpty && _qrEnrolledStudents.isEmpty
-                  ? const Center(
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(
-                            Icons.people_outline,
-                            size: 64,
-                            color: Colors.grey,
-                          ),
-                          SizedBox(height: 16),
-                          Text(
-                            'No students enrolled yet.',
-                            style: TextStyle(fontSize: 16, color: Colors.grey),
-                          ),
-                        ],
-                      ),
-                    )
-                  : ListView(
+  Widget _buildEnrollStudentsTab() {
+    return Padding(
+      padding: const EdgeInsets.all(16.0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Students Count
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                'Enrolled Students (${_enrolledStudents.length})',
+                style: AppTextStyles.headline.copyWith(
+                  fontWeight: FontWeight.w600,
+                  fontSize: 20,
+                ),
+              ),
+            ],
+          ),
+          
+          const SizedBox(height: 16),
+          
+          // Students List
+          Expanded(
+            child: _enrolledStudents.isEmpty
+                ? const Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                                                 // Regular Enrollments Section
-                         if (_enrolledStudents.isNotEmpty) ...[
-                          ..._enrolledStudents.map((student) => Card(
-                            margin: const EdgeInsets.only(bottom: 12),
-                            elevation: 2,
-                            child: ListTile(
-                              contentPadding: const EdgeInsets.all(16),
-                              leading: CircleAvatar(
-                                backgroundColor: AppColor.primary.withValues(alpha: 0.2),
-                                child: Text(
-                                  student.firstName.substring(0, 1).toUpperCase(),
-                                  style: TextStyle(
-                                    color: AppColor.primary,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                              ),
-                              title: Text(
-                                '${student.firstName} ${student.lastName}',
-                                style: AppTextStyles.headline.copyWith(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                              subtitle: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  const SizedBox(height: 4),
-                                  Text(
-                                    'Student ID: ${student.schoolId}',
-                                    style: AppTextStyles.body.copyWith(
-                                      color: Colors.grey[600],
-                                    ),
-                                  ),
-                                  if (student.email != null) ...[
-                                    const SizedBox(height: 4),
-                                    Text(
-                                      'Email: ${student.email}',
-                                      style: AppTextStyles.body.copyWith(
-                                        color: Colors.grey[600],
-                                      ),
-                                    ),
-                                  ],
-                                ],
-                              ),
-                              trailing: IconButton(
-                                icon: const Icon(Icons.grade),
-                                onPressed: () {
-                                  // Navigate to grade submission for this specific student
-                                  context.go('/teacher/grade-submission');
-                                },
-                                tooltip: 'Grade Student',
-                              ),
-                            ),
-                          )).toList(),
-                        ],
-                        
-                                                 // QR Enrollments Section
-                         if (_qrEnrolledStudents.isNotEmpty) ...[
-                           if (_enrolledStudents.isNotEmpty) const SizedBox(height: 16),
-                          ..._qrEnrolledStudents.map((student) => Card(
-                            margin: const EdgeInsets.only(bottom: 12),
-                            elevation: 2,
-                            child: ListTile(
-                              contentPadding: const EdgeInsets.all(16),
-                              leading: CircleAvatar(
-                                backgroundColor: AppColor.primary.withValues(alpha: 0.2),
-                                child: Text(
-                                  student['studentName']?.substring(0, 1).toUpperCase() ?? '?',
-                                  style: TextStyle(
-                                    color: AppColor.primary,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                              ),
-                              title: Text(
-                                student['studentName'] ?? 'Unknown Student',
-                                style: AppTextStyles.headline.copyWith(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                              subtitle: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  const SizedBox(height: 4),
-                                  Text(
-                                    'Student ID: ${student['studentId']}',
-                                    style: AppTextStyles.body.copyWith(
-                                      color: Colors.grey[600],
-                                    ),
-                                  ),
-                                  if (student['studentEmail'] != null) ...[
-                                    const SizedBox(height: 4),
-                                    Text(
-                                      'Email: ${student['studentEmail']}',
-                                      style: AppTextStyles.body.copyWith(
-                                        color: Colors.grey[600],
-                                      ),
-                                    ),
-                                  ],
-                                  const SizedBox(height: 4),
-                                  Text(
-                                    'Enrolled via: QR Code',
-                                    style: AppTextStyles.body.copyWith(
-                                      color: Colors.orange[700],
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.w600,
-                                    ),
-                                  ),
-                                  if (student['enrolledAt'] != null) ...[
-                                    const SizedBox(height: 4),
-                                    Text(
-                                      'Enrolled: ${_formatDateTime((student['enrolledAt'] as Timestamp).toDate())}',
-                                      style: AppTextStyles.body.copyWith(
-                                        color: Colors.grey[600],
-                                        fontSize: 12,
-                                      ),
-                                    ),
-                                  ],
-                                ],
-                              ),
-                              trailing: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Container(
-                                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                    decoration: BoxDecoration(
-                                      color: Colors.orange,
-                                      borderRadius: BorderRadius.circular(12),
-                                    ),
-                                    child: const Text(
-                                      'QR',
-                                      style: TextStyle(
-                                        color: Colors.white,
-                                        fontSize: 10,
-                                        fontWeight: FontWeight.bold,
-                                      ),
-                                    ),
-                                  ),
-                                  const SizedBox(width: 8),
-                                  IconButton(
-                                    icon: const Icon(Icons.grade),
-                                    onPressed: () {
-                                      // Navigate to grade submission for this specific student
-                                      context.go('/teacher/grade-submission');
-                                    },
-                                    tooltip: 'Grade Student',
-                                  ),
-                                ],
-                              ),
-                            ),
-                          )).toList(),
-                        ],
+                        Icon(
+                          Icons.people_outline,
+                          size: 64,
+                          color: Colors.grey,
+                        ),
+                        SizedBox(height: 16),
+                        Text(
+                          'No students enrolled yet.',
+                          style: TextStyle(fontSize: 16, color: Colors.grey),
+                        ),
                       ],
                     ),
+                  )
+                : ListView(
+                    children: [
+                      // All Enrolled Students (both regular and QR enrollments)
+                      ..._enrolledStudents.map((student) => Card(
+                          margin: const EdgeInsets.only(bottom: 12),
+                          elevation: 2,
+                          child: ListTile(
+                            contentPadding: const EdgeInsets.all(16),
+                            leading: CircleAvatar(
+                              backgroundColor: AppColor.primary.withValues(alpha: 0.2),
+                              child: Text(
+                                student.firstName.substring(0, 1).toUpperCase(),
+                                style: TextStyle(
+                                  color: AppColor.primary,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ),
+                            title: Text(
+                              '${student.firstName} ${student.lastName}',
+                              style: AppTextStyles.headline.copyWith(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                            subtitle: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const SizedBox(height: 4),
+                                Text(
+                                  'Student ID: ${student.schoolId}',
+                                  style: AppTextStyles.body.copyWith(
+                                    color: Colors.grey[600],
+                                  ),
+                                ),
+                              ],
+                            ),
+                            trailing: IconButton(
+                              icon: const Icon(Icons.star),
+                              onPressed: () {
+                                // Navigate to grade input screen
+                                context.pushNamed('teacher-grade-input', extra: {
+                                  'subjectId': widget.subjectId,
+                                  'studentId': student.uid,
+                                  'studentName': '${student.firstName} ${student.lastName}',
+                                  'subject': Subject(
+                                    uid: widget.subjectId,
+                                    name: 'Subject',
+                                    code: 'SUBJ',
+                                    description: '',
+                                    department: '',
+                                    credits: 0,
+                                    academicYear: '',
+                                    isActive: true,
+                                    additionalInfo: {},
+                                  ),
+                                });
+                              },
+                              tooltip: 'Input Grades',
+                            ),
+                          ),
+                        )).toList(),
+                    ],
+                  ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildGradeStatCard(String title, int gradedCount, int totalCount, Color color) {
+    final percentage = totalCount > 0 ? (gradedCount / totalCount * 100).round() : 0;
+    
+    return Card(
+      color: color.withValues(alpha: 0.1),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          children: [
+            Icon(
+              Icons.grade,
+              color: color,
+              size: 32,
+            ),
+            const SizedBox(height: 8),
+            Text(
+              title,
+              style: AppTextStyles.title.copyWith(
+                color: color,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              '$gradedCount/$totalCount',
+              style: AppTextStyles.title.copyWith(
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            Text(
+              '$percentage%',
+              style: AppTextStyles.caption.copyWith(
+                color: color,
+                fontWeight: FontWeight.bold,
+              ),
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_isLoading) {
+      return Scaffold(
+        appBar: const DearV2AppBar(
+          title: 'Subject Students',
+          centerTitle: true,
+          automaticallyImplyLeading: false,
+          leading: BackButton(),
+        ),
+        body: const Center(child: CircularProgressIndicator()),
+      );
+    }
+
+    if (_subject == null) {
+      return Scaffold(
+        appBar: const DearV2AppBar(
+          title: 'Subject Students',
+          centerTitle: true,
+          automaticallyImplyLeading: false,
+          leading: BackButton(),
+        ),
+        body: const Center(
+          child: Text('Subject not found'),
+        ),
+      );
+    }
+
+    final subject = _subject!;
+
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Subject Students'),
+        centerTitle: true,
+        leading: const BackButton(),
+        bottom: TabBar(
+          controller: _tabController,
+          tabs: const [
+            Tab(text: 'Info'),
+            Tab(text: 'Enroll Students'),
+          ],
+        ),
+      ),
+      floatingActionButton: SpeedDial(
+        icon: Icons.add,
+        activeIcon: Icons.close,
+        backgroundColor: AppColor.primary,
+        foregroundColor: Colors.white,
+        activeBackgroundColor: Colors.red,
+        activeForegroundColor: Colors.white,
+        buttonSize: const Size(56.0, 56.0),
+        visible: true,
+        closeManually: false,
+        curve: Curves.bounceIn,
+        overlayColor: Colors.black,
+        overlayOpacity: 0.5,
+        elevation: 8.0,
+        shape: const CircleBorder(),
+        children: [
+          SpeedDialChild(
+            child: const Icon(Icons.person_add, color: Colors.white),
+            backgroundColor: Colors.blue,
+            foregroundColor: Colors.white,
+            label: 'Add/Invite Student',
+            labelStyle: const TextStyle(fontSize: 14.0),
+            onTap: () {
+              // TODO: Implement add/invite student functionality
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('Add/Invite Student functionality coming soon!'),
+                  backgroundColor: Colors.blue,
+                ),
+              );
+            },
+          ),
+          SpeedDialChild(
+            child: const Icon(Icons.qr_code, color: Colors.white),
+            backgroundColor: Colors.orange,
+            foregroundColor: Colors.white,
+            label: 'Generate QR Code',
+            labelStyle: const TextStyle(fontSize: 14.0),
+            onTap: () => _generateQRCode(),
+          ),
+          SpeedDialChild(
+            child: const Icon(Icons.assignment, color: Colors.white),
+            backgroundColor: Colors.green,
+            foregroundColor: Colors.white,
+            label: 'Submit Grades',
+            labelStyle: const TextStyle(fontSize: 14.0),
+            onTap: () {
+              context.go('/teacher/grade-submission');
+            },
+          ),
+        ],
+      ),
+      body: TabBarView(
+        controller: _tabController,
+        children: [
+          _buildInfoTab(),
+          _buildEnrollStudentsTab(),
+        ],
       ),
     );
   }
